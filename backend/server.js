@@ -1,56 +1,51 @@
 const express = require('express');
+const app = express();
+const port = 33400;
 const sqlite3 = require('sqlite3').verbose();
+const db = new sqlite3.Database('./ecommerce.db');
 const cors = require('cors');
 
-const app = express();
-const PORT = 33400;
-
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Connect to the SQLite database
-const db = new sqlite3.Database('./ecommerce.db', (err) => {
-  if (err) {
-    console.error('❌ Error opening database:', err.message);
-  } else {
-    console.log('✅ Connected to SQLite database');
-  }
-});
-
-// GET all departments
-app.get('/departments', (req, res) => {
-  db.all('SELECT * FROM departments', (err, rows) => {
+// ✅ Get all departments
+app.get('/api/departments', (req, res) => {
+  const query = `
+    SELECT d.id, d.name, COUNT(p.id) AS product_count
+    FROM departments d
+    LEFT JOIN products p ON d.id = p.department_id
+    GROUP BY d.id
+  `;
+  db.all(query, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json({ data: rows });
+    res.json({ departments: rows });
   });
 });
 
-// GET a department by ID
-app.get('/departments/:id', (req, res) => {
-  const { id } = req.params;
+// ✅ Get department by ID
+app.get('/api/departments/:id', (req, res) => {
+  const id = req.params.id;
   db.get('SELECT * FROM departments WHERE id = ?', [id], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!row) return res.status(404).json({ error: 'Department not found' });
-    res.json({ data: row });
+    res.json(row);
   });
 });
 
-// GET products in a specific department
-app.get('/departments/:id/products', (req, res) => {
-  const { id } = req.params;
+// ✅ Get all products in a department
+app.get('/api/departments/:id/products', (req, res) => {
+  const id = req.params.id;
   const query = `
-    SELECT products.* FROM products
-    JOIN departments ON products.department = departments.name
-    WHERE departments.id = ?
+    SELECT p.*
+    FROM products p
+    WHERE p.department_id = ?
   `;
   db.all(query, [id], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json({ data: rows });
+    res.json({ department_id: id, products: rows });
   });
 });
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`🚀 Ecommerce API is running at http://localhost:${PORT}`);
+app.listen(port, () => {
+  console.log(`Ecommerce API is running at http://localhost:${port}`);
 });
